@@ -320,6 +320,7 @@ textarea.fc{resize:vertical;min-height:80px;}
       <div class="tabs">
         <button class="tab active" onclick="gTab('chamados',this)">📋 Chamados</button>
         <button class="tab" onclick="gTab('catalogo',this)">📦 Catálogo</button>
+        <button class="tab" onclick="gTab('equipe',this)">👥 Equipe</button>
       </div>
       <div id="tabChamados">
         <div class="mgrid">
@@ -393,6 +394,29 @@ textarea.fc{resize:vertical;min-height:80px;}
           <div id="catListaInline"></div>
         </div>
       </div>
+    </div>
+
+
+      <div id="tabEquipe" style="display:none">
+        <div style="max-width:600px">
+          <div class="stitle">Equipe</div>
+          <div class="fcard" style="position:static;margin-bottom:20px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+              <div>
+                <label class="fl">Nome do Funcionário</label>
+                <input type="text" class="fc" id="eqNome" placeholder="Ex: Carlos Silva">
+              </div>
+              <div>
+                <label class="fl">Senha de Acesso</label>
+                <input type="password" class="fc" id="eqSenha" placeholder="Mínimo 4 caracteres">
+              </div>
+              <button class="btn btn-primary" style="margin-bottom:1px" onclick="addEquipe()">+ Adicionar</button>
+            </div>
+          </div>
+          <div id="equipeListaInline"></div>
+        </div>
+      </div>
+
     </div>
 
     <!-- TECNICO -->
@@ -478,7 +502,10 @@ window.fazerLogin = function(){
   if(r==='tecnico'){
     const nome = document.getElementById('tecnicoSelect').value;
     if(!nome){ err.textContent='Selecione seu nome'; return; }
-    if(senha !== SENHA_TECNICO){ err.textContent='Senha incorreta'; return; }
+    const eq = window._equipe || [];
+    const func = eq.find(e=>e.nome===nome);
+    if(!func){ err.textContent='Funcionário não encontrado'; return; }
+    if(senha !== func.senha){ err.textContent='Senha incorreta'; return; }
     tecAtivo = nome;
   }
   err.textContent='';
@@ -518,6 +545,7 @@ async function iniciarApp(){
     document.getElementById('tview').classList.add('active');
   }
   // carregar catálogo
+  await carregarEquipe();
   await carregarCatalogo();
   // ouvir chamados em tempo real
   ouvirChamados();
@@ -784,7 +812,70 @@ window.gTab = function(tab,btn){
   btn.classList.add('active');
   document.getElementById('tabChamados').style.display=tab==='chamados'?'block':'none';
   document.getElementById('tabCatalogo').style.display=tab==='catalogo'?'block':'none';
+  document.getElementById('tabEquipe').style.display=tab==='equipe'?'block':'none';
   if(tab==='catalogo') renderCatalogoInline();
+  if(tab==='equipe') renderEquipe();
+}
+
+
+// ── EQUIPE ──
+async function carregarEquipe(){
+  const snap = await getDocs(collection(db,'equipe'));
+  window._equipe = snap.docs.map(d=>({fbId:d.id,...d.data()}));
+  // rebuild tecnico select
+  atualizarSelectTecnicos();
+}
+
+function atualizarSelectTecnicos(){
+  const eq = window._equipe || [];
+  const sel = document.getElementById('fTecnico');
+  const selLogin = document.getElementById('tecnicoSelect');
+  const nomes = eq.map(e=>e.nome);
+  sel.innerHTML='<option value="">Selecione...</option>';
+  selLogin.innerHTML='<option value="">Selecione...</option>';
+  nomes.forEach(n=>{
+    const o1=document.createElement('option'); o1.value=n; o1.textContent=n; sel.appendChild(o1);
+    const o2=document.createElement('option'); o2.value=n; o2.textContent=n; selLogin.appendChild(o2);
+  });
+}
+
+function renderEquipe(){
+  const eq = window._equipe || [];
+  const el = document.getElementById('equipeListaInline');
+  if(!eq.length){
+    el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px 0">Nenhum funcionário cadastrado ainda.</div>';
+    return;
+  }
+  el.innerHTML = eq.map(e=>`
+    <div class="cat-row" style="align-items:center;">
+      <span class="cat-nome" style="font-size:15px;font-weight:600;">${e.nome}</span>
+      <span style="font-size:12px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;">Técnico</span>
+      <button class="btn btn-danger btn-sm" onclick="window._remEquipe('${e.fbId}')">✕ Remover</button>
+    </div>`).join('');
+}
+
+window.addEquipe = async function(){
+  const nome = document.getElementById('eqNome').value.trim();
+  const senha = document.getElementById('eqSenha').value.trim();
+  if(!nome){ toast('Digite o nome do funcionário','erro'); return; }
+  if(senha.length < 4){ toast('Senha deve ter pelo menos 4 caracteres','erro'); return; }
+  const eq = window._equipe || [];
+  if(eq.find(e=>e.nome.toLowerCase()===nome.toLowerCase())){ toast('Funcionário já cadastrado','erro'); return; }
+  const ref = await addDoc(collection(db,'equipe'),{nome,senha});
+  window._equipe.push({fbId:ref.id,nome,senha});
+  document.getElementById('eqNome').value='';
+  document.getElementById('eqSenha').value='';
+  atualizarSelectTecnicos();
+  renderEquipe();
+  toast(`✅ ${nome} adicionado à equipe!`);
+}
+
+window._remEquipe = async function(fbId){
+  await deleteDoc(doc(db,'equipe',fbId));
+  window._equipe = window._equipe.filter(e=>e.fbId!==fbId);
+  atualizarSelectTecnicos();
+  renderEquipe();
+  toast('Funcionário removido');
 }
 
 // ── FILTROS ──
