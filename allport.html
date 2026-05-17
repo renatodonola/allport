@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AllPort — Gestão de Portaria Remota</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+:root{
+  --bg:#0b0e15;--surface:#13171f;--surface2:#1c2130;--surface3:#242b3d;
+  --border:#2c3347;--text:#e8ecf4;--muted:#6b7591;
+  --accent:#4f9cf9;--accent-dim:rgba(79,156,249,0.12);
+  --green:#2dd4a0;--green-dim:rgba(45,212,160,0.12);
+  --red:#f06060;--red-dim:rgba(240,96,96,0.12);
+  --blue:#5b8dee;--blue-dim:rgba(91,141,238,0.12);
+  --purple:#a78bfa;--purple-dim:rgba(167,139,250,0.12);
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;}
+
+/* LOADING */
+.loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px;}
+.loading-logo{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:var(--accent);letter-spacing:.06em;}
+.loading-logo span{color:var(--muted);}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-msg{font-size:13px;color:var(--muted);}
+
+/* LOGIN */
+.login-screen{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:500;padding:20px;}
+.login-screen.show{display:flex;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;max-width:400px;width:100%;}
+.login-logo{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--accent);letter-spacing:.06em;margin-bottom:4px;}
+.login-logo span{color:var(--muted);}
+.login-sub{font-size:13px;color:var(--muted);margin-bottom:32px;}
+.login-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px;display:block;}
+.login-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;margin-bottom:14px;transition:border-color .18s;}
+.login-input:focus{border-color:var(--accent);}
+.login-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .18s;margin-top:4px;}
+.login-btn:hover{background:#82bcfb;}
+.login-error{font-size:12px;color:var(--red);margin-top:8px;min-height:18px;}
+.login-roles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+.role-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;cursor:pointer;transition:all .18s;}
+.role-card:hover,.role-card.sel{border-color:var(--accent);background:var(--accent-dim);}
+.role-card .ri{font-size:22px;margin-bottom:6px;}
+.role-card .rl{font-size:13px;font-weight:600;color:var(--text);}
+.role-card .rs{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* HEADER */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:var(--accent);letter-spacing:.04em;}
+.logo span{color:var(--muted);font-weight:400;}
+.hright{display:flex;align-items:center;gap:10px;}
+.rbadge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;}
+.rg{background:var(--accent-dim);color:var(--accent);}
+.rt{background:var(--blue-dim);color:var(--blue);}
+.logout-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;}
+.logout-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* TABS */
+.tabs{display:flex;gap:2px;background:var(--surface2);border-radius:8px;padding:3px;margin-bottom:24px;}
+.tab{flex:1;padding:8px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all .18s;text-align:center;}
+.tab.active{background:var(--surface);color:var(--text);}
+
+/* APP */
+.app{max-width:1100px;margin:0 auto;padding:28px 20px;}
+.app-hidden{display:none;}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;}
+.scard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;}
+.slabel{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px;}
+.sval{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;}
+.scard.ab .sval{color:var(--red);}
+.scard.an .sval{color:var(--accent);}
+.scard.re .sval{color:var(--green);}
+.scard.to .sval{color:var(--text);}
+
+/* GRID */
+.mgrid{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start;}
+
+/* SECTION TITLE */
+.stitle{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.stitle::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* FILTERS */
+.filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.fbtn{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all .18s;}
+.fbtn:hover,.fbtn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+
+/* CARDS */
+.clist{display:flex;flex-direction:column;gap:10px;}
+.ccard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;transition:all .18s;border-left:3px solid transparent;}
+.ccard:hover{background:var(--surface2);}
+.ccard.s-aberto{border-left-color:var(--red);}
+.ccard.s-andamento{border-left-color:var(--accent);}
+.ccard.s-resolvido{border-left-color:var(--green);}
+.ctop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.ccliente{font-weight:600;font-size:15px;}
+.cid{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px;}
+.pill{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;text-transform:uppercase;letter-spacing:.06em;flex-shrink:0;}
+.p-ab{background:var(--red-dim);color:var(--red);}
+.p-an{background:var(--accent-dim);color:var(--accent);}
+.p-re{background:var(--green-dim);color:var(--green);}
+.tbadge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;color:var(--muted);margin-bottom:6px;}
+.cdesc{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:10px;}
+.cbot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.cmeta{font-size:11px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;}
+.tectag{font-size:11px;background:var(--blue-dim);color:var(--blue);border:1px solid rgba(91,141,238,.2);border-radius:5px;padding:2px 8px;}
+.rbox{background:var(--green-dim);border:1px solid rgba(45,212,160,.2);border-radius:7px;padding:10px 14px;margin-top:8px;font-size:13px;color:var(--green);}
+.rlabel{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin-bottom:3px;}
+.pecas-summary{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:10px 14px;margin-top:8px;}
+.pecas-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;}
+.peca-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border);}
+.peca-row:last-child{border-bottom:none;}
+.peca-val{color:var(--accent);font-family:'Space Mono',monospace;font-size:11px;}
+.total-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.total-label{font-size:12px;font-weight:700;}
+.total-val{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--green);}
+
+/* BTNS */
+.btn{padding:6px 16px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .18s;display:inline-flex;align-items:center;gap:6px;}
+.btn-aceitar{background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent);}
+.btn-aceitar:hover{background:var(--accent);color:#fff;}
+.btn-baixar{background:var(--green-dim);color:var(--green);border:1px solid var(--green);}
+.btn-baixar:hover{background:var(--green);color:#0a1a14;}
+.btn-os{background:var(--purple-dim);color:var(--purple);border:1px solid var(--purple);}
+.btn-os:hover{background:var(--purple);color:#fff;}
+.btn-primary{background:var(--accent);color:#fff;font-weight:700;}
+.btn-primary:hover{background:#82bcfb;}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--muted);color:var(--text);}
+.btn-danger{background:var(--red-dim);color:var(--red);border:1px solid var(--red);}
+.btn-danger:hover{background:var(--red);color:#fff;}
+.btn-sm{padding:4px 10px;font-size:11px;}
+
+/* FORM */
+.fcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:22px;position:sticky;top:78px;}
+.fg{margin-bottom:16px;}
+.fl{display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;}
+.fc{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:10px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;transition:border-color .18s;outline:none;}
+.fc:focus{border-color:var(--accent);}
+.fc::placeholder{color:var(--muted);}
+select.fc option{background:var(--surface2);}
+textarea.fc{resize:vertical;min-height:80px;}
+
+/* MODAL */
+.moverlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.moverlay.open{opacity:1;pointer-events:all;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;max-width:540px;width:100%;transform:translateY(20px);transition:transform .2s;max-height:90vh;overflow-y:auto;}
+.moverlay.open .modal{transform:translateY(0);}
+.mtitle{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;margin-bottom:20px;}
+.mactions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+
+/* PEÇAS */
+.peca-list-items{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+.peca-item{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;font-size:13px;}
+.peca-item-nome{flex:1;}
+.peca-item-qtd{width:50px;text-align:center;color:var(--accent);font-family:'Space Mono',monospace;}
+.autocomplete-wrap{position:relative;}
+.autocomplete-list{position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--accent);border-top:none;border-radius:0 0 7px 7px;z-index:10;max-height:160px;overflow-y:auto;}
+.ac-item{padding:8px 12px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;}
+.ac-item:hover{background:var(--surface3);}
+.ac-preco{font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);}
+
+/* CATALOGO */
+.cat-row{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:8px;}
+.cat-nome{flex:1;font-size:14px;}
+
+/* OS PRINT */
+.os-content{background:#fff;color:#111;border-radius:10px;padding:28px;font-family:'DM Sans',sans-serif;}
+.os-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #111;}
+.os-empresa{font-size:18px;font-weight:700;}
+.os-num{font-size:12px;color:#666;}
+.os-slabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#666;margin-bottom:6px;}
+.os-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.os-field-label{font-size:11px;color:#888;margin-bottom:2px;}
+.os-field-val{font-size:14px;font-weight:500;}
+.os-table{width:100%;border-collapse:collapse;margin-top:8px;}
+.os-table th{background:#f5f5f5;padding:8px 10px;font-size:12px;text-align:left;border:1px solid #ddd;}
+.os-table td{padding:8px 10px;font-size:13px;border:1px solid #ddd;}
+.os-total{text-align:right;font-size:16px;font-weight:700;margin-top:12px;}
+.os-assinatura{margin-top:32px;padding-top:16px;border-top:1px solid #ddd;display:grid;grid-template-columns:1fr 1fr;gap:40px;}
+.os-ass-line{border-top:1px solid #999;padding-top:6px;font-size:11px;color:#666;text-align:center;margin-top:40px;}
+
+/* SYNC indicator */
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* EMPTY */
+.empty{text-align:center;padding:48px 20px;color:var(--muted);}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.4;}
+
+/* TOAST */
+.toast{position:fixed;bottom:28px;right:28px;background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:8px;padding:12px 18px;font-size:13px;font-weight:500;z-index:999;transform:translateX(120%);transition:transform .3s cubic-bezier(.34,1.56,.64,1);max-width:300px;}
+.toast.show{transform:translateX(0);}
+
+.tview{display:none;}
+.tview.active{display:block;}
+.gview.hidden{display:none;}
+
+@media(max-width:768px){
+  .stats{grid-template-columns:repeat(2,1fr);}
+  .mgrid{grid-template-columns:1fr;}
+  .fcard{position:static;}
+  .app{padding:16px;}
+  .os-grid{grid-template-columns:1fr;}
+}
+@media print{
+  body *{visibility:hidden;}
+  .os-content,.os-content *{visibility:visible;}
+  .os-content{position:fixed;top:0;left:0;width:100%;}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-logo">ALL<span>PORT</span></div>
+  <div class="spinner"></div>
+  <div class="loading-msg">Conectando...</div>
+</div>
+
+<!-- LOGIN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">ALL<span>PORT</span></div>
+    <div class="login-sub">Gestão de Portaria Remota</div>
+    <div id="loginStep1">
+      <label class="login-label">Selecione seu perfil</label>
+      <div class="login-roles">
+        <div class="role-card" id="rcGestor" onclick="selecionarRole('gestor')">
+          <div class="ri">🎯</div>
+          <div class="rl">Gestor</div>
+          <div class="rs">Painel completo</div>
+        </div>
+        <div class="role-card" id="rcTecnico" onclick="selecionarRole('tecnico')">
+          <div class="ri">🔧</div>
+          <div class="rl">Técnico</div>
+          <div class="rs">Meus chamados</div>
+        </div>
+      </div>
+      <div id="tecnicoSelectWrap" style="display:none;margin-bottom:14px;">
+        <label class="login-label">Seu nome</label>
+        <select class="login-input" id="tecnicoSelect" style="margin-bottom:0">
+          <option value="">Selecione...</option>
+        </select>
+      </div>
+      <label class="login-label">Senha de acesso</label>
+      <input type="password" class="login-input" id="loginSenha" placeholder="Digite a senha" onkeydown="if(event.key==='Enter')fazerLogin()">
+      <div class="login-error" id="loginError"></div>
+      <button class="login-btn" onclick="fazerLogin()">Entrar no AllPort</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAIS -->
+<div class="moverlay" id="mBaixa">
+  <div class="modal">
+    <div class="mtitle" style="color:var(--green)">✅ Registrar Resolução</div>
+    <div class="fg">
+      <label class="fl">O que foi feito?</label>
+      <textarea class="fc" id="bResolucao" placeholder="Descreva o serviço realizado..."></textarea>
+    </div>
+    <div class="fg">
+      <label class="fl">Peças utilizadas</label>
+      <div class="peca-list-items" id="bPecasList"></div>
+      <div class="autocomplete-wrap">
+        <input type="text" class="fc" id="bPecaInput" placeholder="Digite o nome da peça..." autocomplete="off" oninput="acPeca(this.value)">
+        <div class="autocomplete-list" id="acList" style="display:none"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <input type="number" class="fc" id="bPecaQtd" placeholder="Qtd" style="width:80px;" min="1" value="1">
+        <button class="btn btn-ghost" style="flex:1" onclick="addPecaAvulsa()">+ Adicionar Peça</button>
+      </div>
+    </div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="fecharModais()">Cancelar</button>
+      <button class="btn btn-baixar" onclick="confirmarBaixa()">✅ Confirmar Baixa</button>
+    </div>
+  </div>
+</div>
+
+<div class="moverlay" id="mOS">
+  <div class="modal" style="max-width:640px">
+    <div class="mtitle" style="color:var(--purple)">📄 Ordem de Serviço</div>
+    <div id="osContent"></div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="fecharModais()">Fechar</button>
+      <button class="btn btn-os" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- APP -->
+<div id="appWrap" class="app-hidden">
+  <header class="header">
+    <div class="logo">ALL<span>PORT</span></div>
+    <div class="hright">
+      <span class="sync-dot"></span>
+      <span style="font-size:11px;color:var(--muted)">Tempo real</span>
+      <span class="rbadge rg" id="rbadge">Gestor</span>
+      <button class="logout-btn" onclick="fazerLogout()">Sair</button>
+    </div>
+  </header>
+
+  <div class="app">
+    <!-- GESTOR -->
+    <div id="gview">
+      <div class="stats">
+        <div class="scard ab"><div class="slabel">Abertos</div><div class="sval" id="cAb">0</div></div>
+        <div class="scard an"><div class="slabel">Em Andamento</div><div class="sval" id="cAn">0</div></div>
+        <div class="scard re"><div class="slabel">Resolvidos</div><div class="sval" id="cRe">0</div></div>
+        <div class="scard to"><div class="slabel">Total</div><div class="sval" id="cTo">0</div></div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="gTab('chamados',this)">📋 Chamados</button>
+        <button class="tab" onclick="gTab('catalogo',this)">📦 Catálogo</button>
+      </div>
+      <div id="tabChamados">
+        <div class="mgrid">
+          <div>
+            <div class="stitle">Ocorrências</div>
+            <div class="filters">
+              <button class="fbtn active" onclick="filtrarG('todos',this)">Todos</button>
+              <button class="fbtn" onclick="filtrarG('aberto',this)">Abertos</button>
+              <button class="fbtn" onclick="filtrarG('andamento',this)">Em Andamento</button>
+              <button class="fbtn" onclick="filtrarG('resolvido',this)">Resolvidos</button>
+            </div>
+            <div class="clist" id="listaG"></div>
+          </div>
+          <div>
+            <div class="stitle">Nova Ocorrência</div>
+            <div class="fcard">
+              <div class="fg">
+                <label class="fl">Cliente / Condomínio</label>
+                <input type="text" class="fc" id="fCliente" placeholder="Ex: Residencial Jardins">
+              </div>
+              <div class="fg">
+                <label class="fl">Tipo do Problema</label>
+                <select class="fc" id="fTipo">
+                  <option value="">Selecione...</option>
+                  <option>🚧 Portão</option>
+                  <option>📷 Câmera</option>
+                  <option>🔔 Interfone</option>
+                  <option>🔒 Fechadura</option>
+                  <option>⚡ Energia</option>
+                  <option>📡 Rede / Internet</option>
+                  <option>🔧 Outro</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="fl">Técnico Responsável</label>
+                <select class="fc" id="fTecnico"><option value="">Selecione...</option></select>
+              </div>
+              <div class="fg">
+                <label class="fl">Prioridade</label>
+                <select class="fc" id="fPrio">
+                  <option value="Normal">Normal</option>
+                  <option value="Alta">🟡 Alta</option>
+                  <option value="Urgente">🔴 Urgente</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="fl">Descrição</label>
+                <textarea class="fc" id="fDesc" placeholder="Descreva o problema relatado..."></textarea>
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="abrirChamado()">+ Abrir Ocorrência</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="tabCatalogo" style="display:none">
+        <div style="max-width:600px">
+          <div class="stitle">Catálogo de Peças</div>
+          <div class="fcard" style="position:static;margin-bottom:20px;">
+            <div style="display:grid;grid-template-columns:1fr 140px auto;gap:10px;align-items:end;">
+              <div>
+                <label class="fl">Nome da Peça</label>
+                <input type="text" class="fc" id="catNomeInline" placeholder="Ex: Central PPA DZ Home">
+              </div>
+              <div>
+                <label class="fl">Preço (R$)</label>
+                <input type="number" class="fc" id="catPrecoInline" placeholder="0,00" step="0.01" min="0">
+              </div>
+              <button class="btn btn-primary" style="margin-bottom:1px" onclick="addCatalogoInline()">+ Adicionar</button>
+            </div>
+          </div>
+          <div id="catListaInline"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TECNICO -->
+    <div class="tview" id="tview">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <div style="font-size:20px;font-weight:700;" id="tNome">—</div>
+          <div style="font-size:13px;color:var(--muted);">Seus chamados</div>
+        </div>
+      </div>
+      <div class="stitle">Meus Chamados</div>
+      <div class="filters">
+        <button class="fbtn active" onclick="filtrarT('todos',this)">Todos</button>
+        <button class="fbtn" onclick="filtrarT('aberto',this)">Aguardando</button>
+        <button class="fbtn" onclick="filtrarT('andamento',this)">Em Andamento</button>
+        <button class="fbtn" onclick="filtrarT('resolvido',this)">Resolvidos</button>
+      </div>
+      <div class="clist" id="listaT"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FIREBASE SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ── CONFIG FIREBASE ──
+const firebaseConfig = {
+  apiKey: "AIzaSyDGQ-yI4L2YwjwRYU2CW5KhM4oC11gZt4U",
+  authDomain: "allport-a5bbe.firebaseapp.com",
+  projectId: "allport-a5bbe",
+  storageBucket: "allport-a5bbe.firebasestorage.app",
+  messagingSenderId: "53714921388",
+  appId: "1:53714921388:web:801634979cdfd8711e3c09"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ── ESTADO ──
+const TECNICOS = ['Carlos','Marcos','Thiago','Rafael','Anderson','Rodrigo'];
+const SENHA_GESTOR = 'allport2024';
+const SENHA_TECNICO = 'tec2024';
+
+let chamados = [];
+let catalogo = [];
+let role = '';
+let tecAtivo = '';
+let filtroG = 'todos';
+let filtroT = 'todos';
+let baixandoId = null;
+let pecasTmp = [];
+let unsubChamados = null;
+
+// ── UTILS ──
+function ts(){ return new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+function fmtR(v){ return 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function emptyHTML(txt,icon){ return `<div class="empty"><div class="empty-icon">${icon}</div><div>${txt}</div></div>`; }
+function toast(msg,tipo){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.borderLeftColor=tipo==='erro'?'var(--red)':'var(--green)';
+  t.style.color=tipo==='erro'?'var(--red)':'var(--green)';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+// ── LOGIN ──
+window.selecionarRole = function(r){
+  document.getElementById('rcGestor').classList.toggle('sel', r==='gestor');
+  document.getElementById('rcTecnico').classList.toggle('sel', r==='tecnico');
+  document.getElementById('tecnicoSelectWrap').style.display = r==='tecnico' ? 'block' : 'none';
+  window._roleTemp = r;
+}
+
+window.fazerLogin = function(){
+  const r = window._roleTemp;
+  const senha = document.getElementById('loginSenha').value;
+  const err = document.getElementById('loginError');
+  if(!r){ err.textContent='Selecione um perfil'; return; }
+  if(r==='gestor' && senha !== SENHA_GESTOR){ err.textContent='Senha incorreta'; return; }
+  if(r==='tecnico'){
+    const nome = document.getElementById('tecnicoSelect').value;
+    if(!nome){ err.textContent='Selecione seu nome'; return; }
+    if(senha !== SENHA_TECNICO){ err.textContent='Senha incorreta'; return; }
+    tecAtivo = nome;
+  }
+  err.textContent='';
+  role = r;
+  document.getElementById('loginScreen').classList.remove('show');
+  iniciarApp();
+}
+
+window.fazerLogout = function(){
+  if(unsubChamados) unsubChamados();
+  role=''; tecAtivo='';
+  document.getElementById('appWrap').classList.add('app-hidden');
+  document.getElementById('loginScreen').classList.add('show');
+  document.getElementById('loginSenha').value='';
+  document.getElementById('loginError').textContent='';
+  window._roleTemp='';
+  document.getElementById('rcGestor').classList.remove('sel');
+  document.getElementById('rcTecnico').classList.remove('sel');
+  document.getElementById('tecnicoSelectWrap').style.display='none';
+}
+
+// ── INIT APP ──
+async function iniciarApp(){
+  // setup UI
+  document.getElementById('appWrap').classList.remove('app-hidden');
+  if(role==='gestor'){
+    document.getElementById('rbadge').textContent='Gestor';
+    document.getElementById('rbadge').className='rbadge rg';
+    document.getElementById('gview').classList.remove('hidden');
+    document.getElementById('tview').classList.remove('active');
+    initSelects();
+  } else {
+    document.getElementById('rbadge').textContent=`Téc. ${tecAtivo}`;
+    document.getElementById('rbadge').className='rbadge rt';
+    document.getElementById('tNome').textContent=tecAtivo;
+    document.getElementById('gview').classList.add('hidden');
+    document.getElementById('tview').classList.add('active');
+  }
+  // carregar catálogo
+  await carregarCatalogo();
+  // ouvir chamados em tempo real
+  ouvirChamados();
+}
+
+function initSelects(){
+  const sel = document.getElementById('fTecnico');
+  sel.innerHTML='<option value="">Selecione...</option>';
+  TECNICOS.forEach(t=>{ const o=document.createElement('option'); o.value=t; o.textContent=t; sel.appendChild(o); });
+  const ts2 = document.getElementById('tecnicoSelect');
+  ts2.innerHTML='<option value="">Selecione...</option>';
+  TECNICOS.forEach(t=>{ const o=document.createElement('option'); o.value=t; o.textContent=t; ts2.appendChild(o); });
+}
+
+// ── FIRESTORE: CHAMADOS ──
+function ouvirChamados(){
+  const q = query(collection(db,'chamados'), orderBy('criadoMs','desc'));
+  unsubChamados = onSnapshot(q, snap => {
+    chamados = snap.docs.map(d=>({fbId:d.id,...d.data()}));
+    renderG();
+    if(role==='tecnico') renderT();
+  });
+}
+
+async function salvarChamado(dados){
+  await addDoc(collection(db,'chamados'), dados);
+}
+
+async function atualizarChamado(fbId, dados){
+  await updateDoc(doc(db,'chamados',fbId), dados);
+}
+
+// ── FIRESTORE: CATÁLOGO ──
+async function carregarCatalogo(){
+  const snap = await getDocs(collection(db,'catalogo'));
+  catalogo = snap.docs.map(d=>({fbId:d.id,...d.data()}));
+}
+
+async function salvarPecaCatalogo(nome, preco){
+  const ref = await addDoc(collection(db,'catalogo'),{nome,preco});
+  catalogo.push({fbId:ref.id,nome,preco});
+}
+
+async function atualizarPrecoCatalogo(fbId, preco){
+  await updateDoc(doc(db,'catalogo',fbId),{preco});
+  const p=catalogo.find(x=>x.fbId===fbId); if(p) p.preco=preco;
+}
+
+async function removerPecaCatalogo(fbId){
+  await deleteDoc(doc(db,'catalogo',fbId));
+  catalogo=catalogo.filter(x=>x.fbId!==fbId);
+  renderCatalogoInline();
+}
+
+// ── RENDER GESTOR ──
+function renderG(){
+  const ord={aberto:0,andamento:1,resolvido:2};
+  let items = filtroG==='todos'?[...chamados]:chamados.filter(c=>c.status===filtroG);
+  items.sort((a,b)=>{
+    if(a.prio==='Urgente'&&b.prio!=='Urgente')return -1;
+    if(b.prio==='Urgente'&&a.prio!=='Urgente')return 1;
+    return ord[a.status]-ord[b.status];
+  });
+  document.getElementById('listaG').innerHTML = items.length ? items.map(c=>cardHTML(c,'gestor')).join('') : emptyHTML('Nenhuma ocorrência encontrada','📋');
+  document.getElementById('cAb').textContent=chamados.filter(c=>c.status==='aberto').length;
+  document.getElementById('cAn').textContent=chamados.filter(c=>c.status==='andamento').length;
+  document.getElementById('cRe').textContent=chamados.filter(c=>c.status==='resolvido').length;
+  document.getElementById('cTo').textContent=chamados.length;
+}
+
+// ── RENDER TECNICO ──
+function renderT(){
+  let items=chamados.filter(c=>c.tecnico===tecAtivo);
+  if(filtroT!=='todos') items=items.filter(c=>c.status===filtroT);
+  document.getElementById('listaT').innerHTML = items.length ? items.map(c=>cardHTML(c,'tecnico')).join('') : emptyHTML('Sem chamados pra você agora','✅');
+}
+
+// ── CARD HTML ──
+function cardHTML(c, view){
+  const pillCls={aberto:'p-ab',andamento:'p-an',resolvido:'p-re'}[c.status];
+  const pillLbl={aberto:'Aberto',andamento:'Em Andamento',resolvido:'Resolvido'}[c.status];
+  const prioColor=c.prio==='Urgente'?'color:var(--red)':c.prio==='Alta'?'color:var(--accent)':'color:var(--muted)';
+  let acoes='';
+  if(view==='tecnico'){
+    if(c.status==='aberto') acoes=`<button class="btn btn-aceitar" onclick="window._aceitar('${c.fbId}')">▶ Aceitar</button>`;
+    else if(c.status==='andamento') acoes=`<button class="btn btn-baixar" onclick="window._abrirBaixa('${c.fbId}')">✅ Dar Baixa</button>`;
+  } else {
+    if(c.status==='andamento') acoes=`<button class="btn btn-baixar" onclick="window._abrirBaixa('${c.fbId}')">✅ Dar Baixa</button>`;
+    if(c.status==='resolvido') acoes=`<button class="btn btn-os" onclick="window._verOS('${c.fbId}')">📄 Ver OS</button>`;
+  }
+  const resolBox = c.status==='resolvido'&&c.resolucao ? `<div class="rbox"><div class="rlabel">Serviço realizado</div>${c.resolucao}</div>` : '';
+  let pecasBox='';
+  if(c.status==='resolvido'&&c.pecas&&c.pecas.length>0){
+    if(view==='gestor'){
+      const total=c.pecas.reduce((s,p)=>s+p.preco*p.qtd,0);
+      pecasBox=`<div class="pecas-summary"><div class="pecas-title">Peças utilizadas</div>${c.pecas.map(p=>`<div class="peca-row"><span>${p.nome} x${p.qtd}</span><span class="peca-val">${fmtR(p.preco*p.qtd)}</span></div>`).join('')}<div class="total-row"><span class="total-label">Total em peças</span><span class="total-val">${fmtR(total)}</span></div></div>`;
+    } else {
+      pecasBox=`<div class="pecas-summary"><div class="pecas-title">Peças utilizadas</div>${c.pecas.map(p=>`<div class="peca-row"><span>${p.nome}</span><span style="font-size:12px;color:var(--muted)">x${p.qtd}</span></div>`).join('')}</div>`;
+    }
+  }
+  const num = c.num ? `#${String(c.num).padStart(4,'0')}` : '';
+  return `<div class="ccard s-${c.status}">
+    <div class="ctop">
+      <div><div class="ccliente">${c.cliente}</div><div class="cid">${num}</div></div>
+      <span class="pill ${pillCls}">${pillLbl}</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">
+      <span class="tbadge">${c.tipo}</span>
+      <span style="font-size:12px;font-weight:600;${prioColor}">${c.prio}</span>
+    </div>
+    <div class="cdesc">${c.desc}</div>
+    ${resolBox}${pecasBox}
+    <div class="cbot">
+      <div class="cmeta"><span>🕐 ${c.criado}</span><span><span class="tectag">👤 ${c.tecnico}</span></span></div>
+      <div style="display:flex;gap:8px;">${acoes}</div>
+    </div>
+  </div>`;
+}
+
+// ── AÇÕES ──
+window.abrirChamado = async function(){
+  const cliente=document.getElementById('fCliente').value.trim();
+  const tipo=document.getElementById('fTipo').value;
+  const tecnico=document.getElementById('fTecnico').value;
+  const prio=document.getElementById('fPrio').value;
+  const desc=document.getElementById('fDesc').value.trim();
+  if(!cliente||!tipo||!tecnico||!desc){ toast('Preencha todos os campos','erro'); return; }
+  const num = chamados.length > 0 ? Math.max(...chamados.map(c=>c.num||0))+1 : 1;
+  await salvarChamado({cliente,tipo,tecnico,prio,desc,status:'aberto',criado:ts(),criadoMs:Date.now(),resolucao:'',pecas:[],num});
+  ['fCliente','fDesc'].forEach(i=>document.getElementById(i).value='');
+  ['fTipo','fTecnico'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('fPrio').value='Normal';
+  toast('✅ Ocorrência aberta com sucesso!');
+}
+
+window._aceitar = async function(fbId){
+  await atualizarChamado(fbId,{status:'andamento'});
+  toast('▶ Chamado aceito!');
+}
+
+window._abrirBaixa = function(fbId){
+  baixandoId=fbId; pecasTmp=[];
+  document.getElementById('bResolucao').value='';
+  document.getElementById('bPecaInput').value='';
+  document.getElementById('bPecaQtd').value='1';
+  renderPecasTmp();
+  document.getElementById('mBaixa').classList.add('open');
+}
+
+window.confirmarBaixa = async function(){
+  const r=document.getElementById('bResolucao').value.trim();
+  if(!r){ toast('Descreva o que foi feito','erro'); return; }
+  await atualizarChamado(baixandoId,{status:'resolvido',resolucao:r,pecas:pecasTmp});
+  fecharModais();
+  toast('✅ Chamado encerrado!');
+}
+
+// ── PEÇAS ──
+window.acPeca = function(val){
+  const list=document.getElementById('acList');
+  if(val.length<2){ list.style.display='none'; return; }
+  const matches=catalogo.filter(p=>p.nome.toLowerCase().includes(val.toLowerCase()));
+  if(!matches.length){ list.style.display='none'; return; }
+  list.innerHTML=matches.map(p=>`<div class="ac-item" onclick="window._selecionarPeca('${p.nome.replace(/'/g,"\\'")}',${p.preco})"><span>${p.nome}</span><span class="ac-preco">${fmtR(p.preco)}</span></div>`).join('');
+  list.style.display='block';
+}
+
+window._selecionarPeca = function(nome,preco){
+  const qtd=parseInt(document.getElementById('bPecaQtd').value)||1;
+  addPecaLista(nome,qtd,preco);
+  document.getElementById('bPecaInput').value='';
+  document.getElementById('acList').style.display='none';
+}
+
+window.addPecaAvulsa = async function(){
+  const nome=document.getElementById('bPecaInput').value.trim();
+  const qtd=parseInt(document.getElementById('bPecaQtd').value)||1;
+  if(!nome){ toast('Digite o nome da peça','erro'); return; }
+  const cat=catalogo.find(p=>p.nome.toLowerCase()===nome.toLowerCase());
+  const preco=cat?cat.preco:0;
+  if(!cat) await salvarPecaCatalogo(nome,0);
+  addPecaLista(nome,qtd,preco);
+  document.getElementById('bPecaInput').value='';
+  document.getElementById('acList').style.display='none';
+}
+
+function addPecaLista(nome,qtd,preco){
+  const idx=pecasTmp.findIndex(p=>p.nome===nome);
+  if(idx>=0) pecasTmp[idx].qtd+=qtd;
+  else pecasTmp.push({nome,qtd,preco});
+  renderPecasTmp();
+}
+
+window.remPeca = function(idx){ pecasTmp.splice(idx,1); renderPecasTmp(); }
+
+function renderPecasTmp(){
+  document.getElementById('bPecasList').innerHTML=pecasTmp.length
+    ? pecasTmp.map((p,i)=>`<div class="peca-item"><span class="peca-item-nome">${p.nome}</span><span class="peca-item-qtd">x${p.qtd}</span><button class="btn btn-ghost btn-sm" onclick="window.remPeca(${i})">✕</button></div>`).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:6px 0">Nenhuma peça adicionada</div>';
+}
+
+// ── OS ──
+window._verOS = function(fbId){
+  const c=chamados.find(x=>x.fbId===fbId); if(!c) return;
+  const total=c.pecas?c.pecas.reduce((s,p)=>s+p.preco*p.qtd,0):0;
+  document.getElementById('osContent').innerHTML=`
+    <div class="os-content">
+      <div class="os-header">
+        <div><div class="os-empresa">AllPort</div><div class="os-num">Ordem de Serviço ${c.num?'#'+String(c.num).padStart(4,'0'):''}</div></div>
+        <div style="text-align:right;font-size:12px;color:#666">${c.criado}</div>
+      </div>
+      <div style="margin-bottom:16px"><div class="os-slabel">Dados do Chamado</div>
+        <div class="os-grid">
+          <div><div class="os-field-label">Cliente</div><div class="os-field-val">${c.cliente}</div></div>
+          <div><div class="os-field-label">Tipo</div><div class="os-field-val">${c.tipo}</div></div>
+          <div><div class="os-field-label">Técnico</div><div class="os-field-val">${c.tecnico}</div></div>
+          <div><div class="os-field-label">Prioridade</div><div class="os-field-val">${c.prio}</div></div>
+        </div>
+      </div>
+      <div style="margin-bottom:16px"><div class="os-slabel">Problema Relatado</div><div style="font-size:14px;line-height:1.6">${c.desc}</div></div>
+      <div style="margin-bottom:16px"><div class="os-slabel">Serviço Realizado</div><div style="font-size:14px;line-height:1.6">${c.resolucao||'—'}</div></div>
+      ${c.pecas&&c.pecas.length>0?`<div style="margin-bottom:16px"><div class="os-slabel">Peças Utilizadas</div>
+        <table class="os-table"><thead><tr><th>Peça</th><th>Qtd</th><th>Valor Unit.</th><th>Total</th></tr></thead>
+        <tbody>${c.pecas.map(p=>`<tr><td>${p.nome}</td><td>${p.qtd}</td><td>${fmtR(p.preco)}</td><td>${fmtR(p.preco*p.qtd)}</td></tr>`).join('')}</tbody></table>
+        <div class="os-total">Total em peças: ${fmtR(total)}</div></div>`:''}
+      <div class="os-assinatura">
+        <div><div class="os-ass-line">Assinatura do Técnico — ${c.tecnico}</div></div>
+        <div><div class="os-ass-line">Assinatura / Visto do Responsável</div></div>
+      </div>
+    </div>`;
+  document.getElementById('mOS').classList.add('open');
+}
+
+// ── CATÁLOGO ──
+function renderCatalogoInline(){
+  const el=document.getElementById('catListaInline');
+  if(!catalogo.length){ el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px 0">Nenhuma peça cadastrada ainda. Adicione acima ou via chamados.</div>'; return; }
+  el.innerHTML=catalogo.map(p=>`
+    <div class="cat-row">
+      <span class="cat-nome">${p.nome}</span>
+      <input type="number" class="fc" style="width:110px;text-align:right" value="${p.preco}" step="0.01" min="0" onchange="window._atualizarPreco('${p.fbId}',this.value)">
+      <button class="btn btn-danger btn-sm" onclick="window._remCatalogo('${p.fbId}')">✕</button>
+    </div>`).join('');
+}
+
+window.addCatalogoInline = async function(){
+  const nome=document.getElementById('catNomeInline').value.trim();
+  const preco=parseFloat(document.getElementById('catPrecoInline').value)||0;
+  if(!nome){ toast('Digite o nome da peça','erro'); return; }
+  if(catalogo.find(p=>p.nome.toLowerCase()===nome.toLowerCase())){ toast('Peça já cadastrada','erro'); return; }
+  await salvarPecaCatalogo(nome,preco);
+  document.getElementById('catNomeInline').value='';
+  document.getElementById('catPrecoInline').value='';
+  renderCatalogoInline();
+  toast('📦 Peça adicionada ao catálogo!');
+}
+
+window._atualizarPreco = async function(fbId,val){ await atualizarPrecoCatalogo(fbId,parseFloat(val)||0); }
+window._remCatalogo = async function(fbId){ await removerPecaCatalogo(fbId); }
+
+// ── TABS ──
+window.gTab = function(tab,btn){
+  document.querySelectorAll('.tabs .tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tabChamados').style.display=tab==='chamados'?'block':'none';
+  document.getElementById('tabCatalogo').style.display=tab==='catalogo'?'block':'none';
+  if(tab==='catalogo') renderCatalogoInline();
+}
+
+// ── FILTROS ──
+window.filtrarG = function(f,btn){
+  filtroG=f;
+  document.querySelectorAll('#gview .filters .fbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderG();
+}
+window.filtrarT = function(f,btn){
+  filtroT=f;
+  document.querySelectorAll('#tview .filters .fbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderT();
+}
+
+// ── MODAIS ──
+window.fecharModais = function(){
+  document.querySelectorAll('.moverlay').forEach(m=>m.classList.remove('open'));
+  baixandoId=null;
+}
+
+// ── AUTOCOMPLETE FORA ──
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.autocomplete-wrap')) document.getElementById('acList').style.display='none';
+});
+
+// ── INICIALIZAÇÃO ──
+initSelects();
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('loginScreen').classList.add('show');
+
+</script>
+</body>
+</html>
