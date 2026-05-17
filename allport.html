@@ -294,6 +294,18 @@ textarea.fc{resize:vertical;min-height:80px;}
   </div>
 </div>
 
+
+<div class="moverlay" id="mEditPecas">
+  <div class="modal" style="max-width:500px">
+    <div class="mtitle" style="color:var(--accent)">✏️ Editar Peças e Valores</div>
+    <div id="editPecasList"></div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="fecharModais()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEdicaoPecas()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- APP -->
@@ -634,7 +646,7 @@ function cardHTML(c, view){
     else if(c.status==='andamento') acoes=`<button class="btn btn-baixar" onclick="window._abrirBaixa('${c.fbId}')">✅ Dar Baixa</button>`;
   } else {
     if(c.status==='andamento') acoes=`<button class="btn btn-baixar" onclick="window._abrirBaixa('${c.fbId}')">✅ Dar Baixa</button>`;
-    if(c.status==='resolvido') acoes=`<button class="btn btn-os" onclick="window._verOS('${c.fbId}')">📄 Ver OS</button>`;
+    if(c.status==='resolvido') acoes=`<button class="btn btn-aceitar" onclick="window._abrirEditPecas('${c.fbId}')">✏️ Editar Peças</button><button class="btn btn-os" onclick="window._verOS('${c.fbId}')">📄 Ver OS</button>`;
   }
   const resolBox = c.status==='resolvido'&&c.resolucao ? `<div class="rbox"><div class="rlabel">Serviço realizado</div>${c.resolucao}</div>` : '';
   let pecasBox='';
@@ -876,6 +888,77 @@ window._remEquipe = async function(fbId){
   atualizarSelectTecnicos();
   renderEquipe();
   toast('Funcionário removido');
+}
+
+
+// ── EDITAR PEÇAS ──
+let editandoFbId = null;
+let editPecasTmp = [];
+
+window._abrirEditPecas = function(fbId){
+  editandoFbId = fbId;
+  const c = chamados.find(x=>x.fbId===fbId);
+  editPecasTmp = c.pecas ? c.pecas.map(p=>({...p})) : [];
+  renderEditPecas();
+  document.getElementById('mEditPecas').classList.add('open');
+}
+
+function renderEditPecas(){
+  const el = document.getElementById('editPecasList');
+  if(!editPecasTmp.length){
+    el.innerHTML = `<div style="color:var(--muted);font-size:13px;margin-bottom:16px">Nenhuma peça registrada neste chamado.</div>
+    <div style="color:var(--muted);font-size:13px">Adicione peças abaixo:</div>`;
+  } else {
+    el.innerHTML = `
+      <div style="margin-bottom:16px;">
+        ${editPecasTmp.map((p,i)=>`
+          <div style="display:grid;grid-template-columns:1fr 90px 90px auto;gap:8px;align-items:center;margin-bottom:8px;">
+            <div style="font-size:13px;font-weight:500;">${p.nome} <span style="color:var(--muted)">x${p.qtd}</span></div>
+            <div style="font-size:11px;color:var(--muted);">Preço unit.</div>
+            <input type="number" class="fc" style="text-align:right;padding:6px 8px;font-size:13px;" value="${p.preco}" step="0.01" min="0" onchange="editPecasTmp[${i}].preco=parseFloat(this.value)||0;atualizarTotalEdit()">
+            <button class="btn btn-danger btn-sm" onclick="editPecasTmp.splice(${i},1);renderEditPecas()">✕</button>
+          </div>`).join('')}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border);margin-top:4px;">
+          <span style="font-size:13px;font-weight:600;">Total</span>
+          <span id="totalEdit" style="font-family:monospace;font-size:15px;font-weight:700;color:var(--green)"></span>
+        </div>
+      </div>`;
+    atualizarTotalEdit();
+  }
+  // add nova peça
+  el.innerHTML += `
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Adicionar peça</div>
+      <div style="display:grid;grid-template-columns:1fr 80px 80px auto;gap:8px;align-items:end;">
+        <input type="text" class="fc" id="epNome" placeholder="Nome da peça" style="padding:8px 10px;font-size:13px;">
+        <input type="number" class="fc" id="epQtd" placeholder="Qtd" value="1" min="1" style="padding:8px 10px;font-size:13px;">
+        <input type="number" class="fc" id="epPreco" placeholder="R$" step="0.01" min="0" style="padding:8px 10px;font-size:13px;">
+        <button class="btn btn-ghost btn-sm" onclick="addEditPeca()">+</button>
+      </div>
+    </div>`;
+}
+
+function atualizarTotalEdit(){
+  const total = editPecasTmp.reduce((s,p)=>s+p.preco*p.qtd,0);
+  const el = document.getElementById('totalEdit');
+  if(el) el.textContent = fmtR(total);
+}
+
+window.addEditPeca = function(){
+  const nome = document.getElementById('epNome').value.trim();
+  const qtd = parseInt(document.getElementById('epQtd').value)||1;
+  const preco = parseFloat(document.getElementById('epPreco').value)||0;
+  if(!nome){ toast('Digite o nome da peça','erro'); return; }
+  const idx = editPecasTmp.findIndex(p=>p.nome===nome);
+  if(idx>=0) editPecasTmp[idx].qtd+=qtd;
+  else editPecasTmp.push({nome,qtd,preco});
+  renderEditPecas();
+}
+
+window.salvarEdicaoPecas = async function(){
+  await atualizarChamado(editandoFbId, {pecas: editPecasTmp});
+  fecharModais();
+  toast('💾 Peças e valores salvos!');
 }
 
 // ── FILTROS ──
